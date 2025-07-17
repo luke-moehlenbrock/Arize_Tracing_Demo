@@ -1,0 +1,7 @@
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Arize Configuration (for later instrumentation)
+ARIZE_API_KEY=your_arize_api_key_here
+ARIZE_SPACE_ID=your_arize_space_id_here
+ARIZE_PROJECT_NAME=llm-agent-demo 
