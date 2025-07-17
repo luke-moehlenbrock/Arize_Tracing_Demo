@@ -7,14 +7,11 @@ import sys
 from dotenv import load_dotenv
 from llm_agent import LLMAgent, demonstrate_agent
 
-#===============================================
-#TODO - delete before pushing
-#===============================================
 from arize.otel import register
 from openinference.instrumentation.openai import OpenAIInstrumentor
 
-#===============================================
-#===============================================
+from opentelemetry import trace
+from openinference.semconv.trace import SpanAttributes, OpenInferenceSpanKindValues, MessageAttributes
 
 
 def setup_environment():
@@ -37,9 +34,6 @@ def setup_environment():
             print(f"   - {key}")
         print("   This is fine for the basic demo, but you'll need these for instrumentation later.")
 
-    #===============================================
-    #TODO - delete before pushing
-    #===============================================
     tracer_provider = register(
         space_id = os.getenv("ARIZE_SPACE_ID"),
         api_key = os.getenv("ARIZE_API_KEY"),
@@ -47,11 +41,9 @@ def setup_environment():
     )
 
     OpenAIInstrumentor(tracer_provider=tracer_provider).instrument()
-    #===============================================
-    #===============================================
 
     print("✅ Environment setup complete!")
-    return True
+    return tracer_provider
 
 
 def interactive_mode():
@@ -61,33 +53,49 @@ def interactive_mode():
     print("Type 'demo' to run the automated demonstration")
     print("Type 'reset' to clear conversation history")
     print("-" * 50)
+
+    # Tracer allows us to create spans and traces
+    tracer = trace.get_tracer(__name__)
     
     agent = LLMAgent()
     
-    while True:
-        try:
-            user_input = input("\n💬 You: ").strip()
-            
-            if user_input.lower() in ['quit', 'exit', 'q']:
-                print("👋 Goodbye!")
+    with tracer.start_as_current_span(
+        name="Interactive Agent Session", 
+        attributes={
+            SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+            SpanAttributes.SESSION_ID: "interactive_session",
+            "agent.mode": "interactive"
+        }
+    ) as span:
+        messages = []
+        while True:
+            try:
+                user_input = input("\n💬 You: ").strip()
+                messages.append({"role": "user", "content": user_input})
+                
+                if user_input.lower() in ['quit', 'exit', 'q']:
+                    print("👋 Goodbye!")
+                    break
+                elif user_input.lower() == 'demo':
+                    demonstrate_agent()
+                    continue
+                elif user_input.lower() == 'reset':
+                    agent.reset_conversation()
+                    continue
+                elif not user_input:
+                    continue
+                
+                
+                response = agent.chat(user_input)
+                print(f"🤖 Assistant: {response}")
+                
+                
+            except KeyboardInterrupt:
+                print("\n\n👋 Goodbye!")
                 break
-            elif user_input.lower() == 'demo':
-                demonstrate_agent()
-                continue
-            elif user_input.lower() == 'reset':
-                agent.reset_conversation()
-                continue
-            elif not user_input:
-                continue
-            
-            response = agent.chat(user_input)
-            print(f"🤖 Assistant: {response}")
-            
-        except KeyboardInterrupt:
-            print("\n\n👋 Goodbye!")
-            break
-        except Exception as e:
-            print(f"❌ Error: {e}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+                span.record_exception(e)
 
 
 def main():
@@ -96,8 +104,7 @@ def main():
     print("=" * 60)
     
     # Setup environment
-    if not setup_environment():
-        sys.exit(1)
+    tracer_provider = setup_environment()
     
     # Check command line arguments
     if len(sys.argv) > 1:
@@ -117,6 +124,8 @@ def main():
     else:
         # Default to interactive mode
         interactive_mode()
+
+    tracer_provider.shutdown()
 
 
 if __name__ == "__main__":
