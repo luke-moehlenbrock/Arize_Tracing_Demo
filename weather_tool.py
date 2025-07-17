@@ -16,6 +16,8 @@ def get_weather(location: str) -> str:
     Returns:
         str: JSON string containing weather information
     """
+
+    #TODO - add tool call instrumentation here (OPTIONAL)
     # Hardcoded weather data for demonstration
     weather_data = {
         "san francisco": {

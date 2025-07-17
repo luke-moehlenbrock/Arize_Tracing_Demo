@@ -9,6 +9,88 @@ from openai import OpenAI
 from weather_tool import get_weather, WEATHER_TOOL_DEFINITION
 from prompt_templates import SYSTEM_PROMPT_TEMPLATE, format_prompt
 
+"""
+OpenInference Semantic Conventions for LLM Tracing
+==================================================
+
+This module demonstrates how to properly instrument LLM applications using OpenInference 
+semantic conventions. These conventions provide a standardized way to trace AI/ML workflows
+for observability and debugging.
+
+SPAN KINDS:
+-----------
+1. AGENT: Top-level spans representing an AI agent's complete interaction
+   - Use for: Agent sessions, chat interactions, multi-step reasoning
+   - Attributes: input.value, output.value, session.id
+
+2. LLM: Spans for Language Model API calls  
+   - Use for: OpenAI completions, chat API calls, model inference
+   - Attributes: 
+     * llm.model_name: Model identifier (e.g., "gpt-4o")
+     * llm.provider: Provider name (e.g., "openai")
+     * llm.system: AI system (e.g., "openai")
+     * llm.prompt_template.template: Prompt template as f-string
+     * llm.prompt_template.variables: Template variables as JSON
+     * llm.tools: Available tools as JSON array
+     * llm.input_messages.{i}.message.role: Message role for input
+     * llm.input_messages.{i}.message.content: Message content for input
+     * llm.output_messages.{i}.message.role: Message role for output
+     * llm.output_messages.{i}.message.content: Message content for output
+     * llm.output_messages.{i}.message.tool_calls: Tool calls in output
+
+3. TOOL: Spans for tool/function executions
+   - Use for: Function calls, API calls, external tool usage
+   - Attributes:
+     * tool.name: Function name
+     * tool.description: Tool purpose/description  
+     * tool.parameters: Function parameters as JSON
+     * message.tool_calls.{i}.tool_call.function.name: Tool function name
+     * message.tool_calls.{i}.tool_call.function.arguments: Tool arguments
+     * message.tool_calls.{i}.tool_call.function.output: Tool result
+
+COMMON ATTRIBUTES:
+------------------
+- input.value: Input to the span (query, parameters, etc.)
+- output.value: Output from the span (response, result, etc.)
+- session.id: Session identifier for grouping related interactions
+- user.id: User identifier for user-specific tracking
+
+MESSAGE FLATTENING:
+-------------------
+Instead of storing messages as JSON blobs, flatten them using indexed attributes:
+✅ Good: llm.input_messages.0.message.role = "user"
+❌ Bad: llm.input_messages = '[{"role": "user", "content": "..."}]'
+
+This provides better searchability and filtering in observability tools.
+
+TOOL CALL PATTERN:
+------------------
+When LLMs make tool calls, create this span hierarchy:
+1. Agent span (top-level)
+   ├── LLM span (initial call with tools)
+   ├── Tool span (for each tool execution)
+   └── LLM span (final response after tools)
+
+EXAMPLE USAGE:
+--------------
+```python
+with tracer.start_as_current_span(
+    "Agent Chat",
+    attributes={
+        SpanAttributes.OPENINFERENCE_SPAN_KIND: OpenInferenceSpanKindValues.AGENT.value,
+        SpanAttributes.INPUT_VALUE: user_input,
+        SpanAttributes.SESSION_ID: "session_123"
+    }
+) as agent_span:
+    # ... agent logic
+    agent_span.set_attribute(SpanAttributes.OUTPUT_VALUE, response)
+```
+
+For more details, see: https://arize.com/docs/ax/observe/tracing/how-to-tracing-manual/
+"""
+
+
+
 
 class LLMAgent:
     """
@@ -37,6 +119,9 @@ class LLMAgent:
         Returns:
             str: The result of the tool execution
         """
+
+        #TODO - add tool call instrumentation here
+
         function_name = tool_call.function.name
         function_args = json.loads(tool_call.function.arguments)
         
@@ -56,6 +141,8 @@ class LLMAgent:
         Returns:
             str: The agent's response
         """
+        #TODO - add agent chat instrumentation here
+        
         # Format the system prompt with the user query
         system_prompt = format_prompt(SYSTEM_PROMPT_TEMPLATE, user_input)
         
@@ -72,6 +159,7 @@ class LLMAgent:
         print(f"🤖 Processing: '{user_input}'")
         
         try:
+            #TODO - add initial llm request instrumentation here
             # Make the initial request with tools
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -105,6 +193,8 @@ class LLMAgent:
                         "tool_call_id": tool_call.id,
                         "content": tool_result
                     })
+
+                #TODO - add final llm request instrumentation here
                 
                 # Get the final response after tool execution
                 final_response = self.client.chat.completions.create(
@@ -145,6 +235,8 @@ def demonstrate_agent():
     print("=" * 60)
     
     agent = LLMAgent()
+
+    #TODO - add agent instrumentation here
     
     # Example queries to demonstrate different capabilities
     demo_queries = [

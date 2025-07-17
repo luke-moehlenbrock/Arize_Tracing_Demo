@@ -7,15 +7,6 @@ import sys
 from dotenv import load_dotenv
 from llm_agent import LLMAgent, demonstrate_agent
 
-#===============================================
-#TODO - delete before pushing
-#===============================================
-from arize.otel import register
-from openinference.instrumentation.openai import OpenAIInstrumentor
-
-#===============================================
-#===============================================
-
 
 def setup_environment():
     """Load environment variables and check configuration."""
@@ -35,25 +26,14 @@ def setup_environment():
         print("⚠️  Note: Some Arize configuration is missing (for future observability):")
         for key in missing_arize:
             print(f"   - {key}")
-        print("   This is fine for the basic demo, but you'll need these for instrumentation later.")
-
-    #===============================================
-    #TODO - delete before pushing
-    #===============================================
-    tracer_provider = register(
-        space_id = os.getenv("ARIZE_SPACE_ID"),
-        api_key = os.getenv("ARIZE_API_KEY"),
-        project_name = os.getenv("ARIZE_PROJECT_NAME"),
-    )
-
-    OpenAIInstrumentor(tracer_provider=tracer_provider).instrument()
-    #===============================================
-    #===============================================
+        return False
+    
+    #TODO - add instrumentation setup here
 
     print("✅ Environment setup complete!")
     return True
 
-
+# Going to ignore interactive mode for the demo and focus on instrumenting demonstrate_agent()
 def interactive_mode():
     """Run the agent in interactive mode."""
     print("\n🎯 Interactive Mode - Chat with the AI Agent")
